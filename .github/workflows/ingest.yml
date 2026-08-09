@@ -1,0 +1,50 @@
+name: nightly ingest
+
+# 11:00 UTC ≈ 03:00 PT, by which point even late West Coast games are final.
+# The request itself wakes the Fly machine via auto_start_machines.
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'Season to pull, e.g. "2026-27" (default: current)'
+        required: false
+      full:
+        description: "Re-pull the whole season instead of the delta"
+        type: boolean
+        default: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ingest
+        env:
+          INGEST_URL: ${{ vars.STATLINE_INGEST_URL || 'https://statline.fly.dev/api/ingest' }}
+          INGEST_SECRET: ${{ secrets.STATLINE_INGEST_SECRET }}
+          SEASON: ${{ inputs.season }}
+          FULL: ${{ inputs.full }}
+        run: |
+          set -euo pipefail
+
+          body=$(jq -nc \
+            --arg season "${SEASON:-}" \
+            --argjson full "${FULL:-false}" \
+            '{} + (if $season == "" then {} else {season: $season} end)
+                + (if $full then {full: true} else {} end)')
+
+          # --max-time covers a cold start plus the route's own retry budget
+          # against stats.nba.com (~141s per season type, two of them).
+          code=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 420 --retry 2 --retry-delay 30 --retry-connrefused \
+            -X POST "$INGEST_URL" \
+            -H "authorization: Bearer $INGEST_SECRET" \
+            -H 'content-type: application/json' \
+            -d "$body")
+
+          jq . response.json || cat response.json
+          if [ "$code" != "200" ]; then
+            echo "::error::ingest returned HTTP $code"
+            exit 1
+          fi
