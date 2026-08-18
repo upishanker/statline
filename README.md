@@ -35,8 +35,40 @@ deviation among players who fill the box score. The result: games that
 just barely qualify sort above blowout outliers, which is usually what you
 were actually looking for.
 
+Alongside the stat ranges you can filter by player, team, opponent, win/loss,
+home/away, and season range — all plain predicates on columns the table already
+carries.
+
 Everything the UI holds is mirrored into the query string, so any search is
 a shareable link and the back button works.
+
+## Ask in plain English
+
+There's a text box above the filters. Type *"40 points and 10 assists in a loss"*
+and the sliders move to match.
+
+The model never sees SQL and never touches results. It only fills in the same
+filter object the panel produces, which then goes through the usual zod
+validation and [`buildSearchQuery`](src/lib/buildSearchQuery.ts) — so column
+names still come only from the `STAT_KEYS` allowlist and values are still bound
+parameters. A hallucinated stat key fails validation instead of reaching the
+database.
+
+That also makes the feature legible: because the parse lands in the filter
+panel rather than in a separate results view, you can see how your sentence was
+read, fix one number, and re-run. Anything the schema can't express — a date, a
+playoff round, a career total — is reported back as *ignored* rather than
+silently approximated.
+
+It runs on [Gemini](https://ai.google.dev) via `GEMINI_API_KEY` (see
+`.env.example`). Two things worth knowing:
+
+- **On Google's free tier, prompts and responses are used to improve Google's
+  products.** Queries you type into that box leave the app. The rest of the
+  site never calls out.
+- Free tier has a hard daily cap, so translations are cached in SQLite and the
+  endpoint is rate-limited. When the quota runs out the box disables itself and
+  says so — the manual filters keep working, and nothing is ever guessed.
 
 ### Data notes
 
@@ -79,6 +111,9 @@ npm run lint
 npm run typecheck
 ```
 
+Copy `.env.example` to `.env.local` and add a `GEMINI_API_KEY` if you want the
+plain-English box; everything else works without it.
+
 `STATLINE_DB_PATH` overrides the DB location (default `data/statline.db`).
 
 ## API
@@ -101,6 +136,10 @@ scanning the table). Bodies are validated with zod; unknown stat keys are
 rejected, which is also what keeps the generated SQL safe — column names
 only ever come from the `STAT_KEYS` allowlist, values are always bound
 parameters.
+
+`POST /api/parse` takes `{ q: string }` and returns `{ criteria, sort,
+unsupported, cached }` — the same shape `/api/search` accepts. It answers `503`
+with `aiUnavailable: true` when the key is missing or the quota is gone.
 
 `GET`/`POST /api/ingest` runs the nightly delta and is bearer-token
 protected via `STATLINE_INGEST_SECRET`. Details in

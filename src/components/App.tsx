@@ -6,30 +6,31 @@ import SortControls from "./SortControls";
 import PerformanceCard from "./PerformanceCard";
 import SkeletonCard from "./SkeletonCard";
 import Pagination from "./Pagination";
-import { paramsToState, stateToParams, type UiState } from "./urlState";
+import NlSearchBar from "./NlSearchBar";
+import {
+  draftOf,
+  EMPTY_DRAFT,
+  paramsToState,
+  stateToParams,
+  type Draft,
+  type UiState,
+} from "./urlState";
 import type { Performance, SearchResponse } from "@/types";
-import type { Filters, SeasonType } from "@/lib/buildSearchQuery";
 
 const PER_PAGE = 25;
 
 function readInitialState(): UiState {
   if (typeof window === "undefined") {
-    return {
-      filters: {},
-      seasonType: "All",
-      sort: { by: "closeness", dir: "asc" },
-      page: 1,
-    };
+    return { ...EMPTY_DRAFT, sort: { by: "closeness", dir: "asc" }, page: 1 };
   }
   return paramsToState(new URLSearchParams(window.location.search));
 }
 
-export default function App() {
+export default function App({ teams }: { teams: string[] }) {
   // Submitted state — what's actually been searched (drives URL & fetches).
   const [submitted, setSubmitted] = useState<UiState>(readInitialState);
   // Draft state — what's in the filter inputs right now.
-  const [draftFilters, setDraftFilters] = useState<Filters>(submitted.filters);
-  const [draftSeasonType, setDraftSeasonType] = useState<SeasonType>(submitted.seasonType);
+  const [draft, setDraft] = useState<Draft>(() => draftOf(submitted));
 
   const [rows, setRows] = useState<Performance[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -50,8 +51,7 @@ export default function App() {
     const onPop = () => {
       const next = paramsToState(new URLSearchParams(window.location.search));
       setSubmitted(next);
-      setDraftFilters(next.filters);
-      setDraftSeasonType(next.seasonType);
+      setDraft(draftOf(next));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -66,8 +66,7 @@ export default function App() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        filters: submitted.filters,
-        seasonType: submitted.seasonType,
+        ...draftOf(submitted),
         sort: submitted.sort,
         page: submitted.page,
         perPage: PER_PAGE,
@@ -98,24 +97,26 @@ export default function App() {
   }, [submitted]);
 
   const handleSubmit = useCallback(() => {
-    setSubmitted({
-      filters: draftFilters,
-      seasonType: draftSeasonType,
-      sort: submitted.sort,
-      page: 1,
-    });
-  }, [draftFilters, draftSeasonType, submitted.sort]);
+    setSubmitted({ ...draft, sort: submitted.sort, page: 1 });
+  }, [draft, submitted.sort]);
 
   const handleClear = useCallback(() => {
-    setDraftFilters({});
-    setDraftSeasonType("All");
-    setSubmitted({
-      filters: {},
-      seasonType: "All",
-      sort: { by: "closeness", dir: "asc" },
-      page: 1,
-    });
+    setDraft(EMPTY_DRAFT);
+    setSubmitted({ ...EMPTY_DRAFT, sort: { by: "closeness", dir: "asc" }, page: 1 });
   }, []);
+
+  /**
+   * The NL bar is an input method for the filter state, not a parallel results
+   * path: it writes the same draft the panel edits, then submits. The controls
+   * visibly move to match the sentence, so a wrong reading is obvious and fixable.
+   */
+  const handleParsed = useCallback(
+    (next: Draft, sort: UiState["sort"]) => {
+      setDraft(next);
+      setSubmitted({ ...next, sort, page: 1 });
+    },
+    [],
+  );
 
   const handleSortChange = useCallback(
     (next: UiState["sort"]) => {
@@ -150,13 +151,12 @@ export default function App() {
       </header>
 
       <div className="space-y-6">
+        <NlSearchBar onParsed={handleParsed} />
+
         <FilterPanel
-          filters={draftFilters}
-          seasonType={draftSeasonType}
-          onChange={({ filters, seasonType }) => {
-            setDraftFilters(filters);
-            setDraftSeasonType(seasonType);
-          }}
+          value={draft}
+          teams={teams}
+          onChange={setDraft}
           onSubmit={handleSubmit}
           onClear={handleClear}
         />

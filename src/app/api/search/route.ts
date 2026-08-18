@@ -22,9 +22,22 @@ const sortBySchema = z.union([
   z.enum(STAT_KEYS),
 ]);
 
+const seasonSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/, "season must look like 2015-16")
+  .nullable()
+  .optional();
+
 const bodySchema = z.object({
   filters: filtersSchema.default({}),
   seasonType: z.enum(["Regular Season", "Playoffs", "All"]).default("All"),
+  player: z.string().max(60).nullable().optional(),
+  team: z.string().regex(/^[A-Za-z]{3}$/).nullable().optional(),
+  opponent: z.string().regex(/^[A-Za-z]{3}$/).nullable().optional(),
+  outcome: z.enum(["W", "L", "All"]).default("All"),
+  venue: z.enum(["home", "away", "All"]).default("All"),
+  seasonFrom: seasonSchema,
+  seasonTo: seasonSchema,
   sort: z
     .object({
       by: sortBySchema.default("closeness"),

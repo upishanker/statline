@@ -5,8 +5,25 @@ export type Range = { min?: number | null; max?: number | null };
 export type Filters = Partial<Record<StatKey, Range>>;
 export type SeasonType = "Regular Season" | "Playoffs" | "All";
 export type SortBy = "closeness" | "date" | StatKey;
+export type Outcome = "W" | "L" | "All";
+export type Venue = "home" | "away" | "All";
 
-export type SearchRequest = {
+/**
+ * Non-stat filters. Separate from `filters` because these are equality/range
+ * predicates on descriptive columns rather than box-score ranges — the closeness
+ * sort ignores them entirely.
+ */
+export type Criteria = {
+  player?: string | null;
+  team?: string | null;
+  opponent?: string | null;
+  outcome?: Outcome;
+  venue?: Venue;
+  seasonFrom?: string | null;
+  seasonTo?: string | null;
+};
+
+export type SearchRequest = Criteria & {
   filters: Filters;
   seasonType: SeasonType;
   sort: { by: SortBy; dir: "asc" | "desc" };
@@ -33,6 +50,17 @@ const SELECT_COLS = [
 
 function isStatKey(k: string): k is StatKey {
   return (STAT_KEYS as readonly string[]).includes(k);
+}
+
+/** Escape LIKE wildcards so a name containing % or _ matches literally. */
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+function cleanStr(v: string | null | undefined): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t === "" ? null : t;
 }
 
 export function buildSearchQuery(req: SearchRequest): BuiltQuery {
@@ -63,7 +91,51 @@ export function buildSearchQuery(req: SearchRequest): BuiltQuery {
     whereParams.push(req.seasonType);
   }
 
-  const hasAnyFilter = filteredStats.length > 0 || req.seasonType !== "All";
+  // Non-stat predicates. Each is skipped when absent, so an unset field costs nothing.
+  const player = cleanStr(req.player);
+  if (player) {
+    where.push("player_name LIKE ? ESCAPE '\\'");
+    whereParams.push(`%${escapeLike(player)}%`);
+  }
+
+  const team = cleanStr(req.team);
+  if (team) {
+    where.push("team_abbr = ?");
+    whereParams.push(team.toUpperCase());
+  }
+
+  const opponent = cleanStr(req.opponent);
+  if (opponent) {
+    where.push("opponent_abbr = ?");
+    whereParams.push(opponent.toUpperCase());
+  }
+
+  if (req.outcome === "W" || req.outcome === "L") {
+    where.push("win = ?");
+    whereParams.push(req.outcome === "W" ? 1 : 0);
+  }
+
+  if (req.venue === "home" || req.venue === "away") {
+    where.push("home = ?");
+    whereParams.push(req.venue === "home" ? 1 : 0);
+  }
+
+  // Seasons are "YYYY-YY", so lexicographic compare is chronological
+  // ("1999-00" < "2000-01") — no parsing needed.
+  const seasonFrom = cleanStr(req.seasonFrom);
+  if (seasonFrom) {
+    where.push("season >= ?");
+    whereParams.push(seasonFrom);
+  }
+  const seasonTo = cleanStr(req.seasonTo);
+  if (seasonTo) {
+    where.push("season <= ?");
+    whereParams.push(seasonTo);
+  }
+
+  // Any predicate at all means the COUNT is worth running; only a completely
+  // unfiltered query skips it (counting all 1.5M rows tells the user nothing).
+  const hasAnyFilter = where.length > 0;
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
   // Choose sort. Closeness only works if at least one stat range is given.
