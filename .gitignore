@@ -1,21 +1,41 @@
+# dependencies
 node_modules
+scripts/.venv
+scripts/__pycache__
+*.pyc
+
+# build output
 .next
 out
 build
 dist
+*.tsbuildinfo
 
+# data (statline.db is ~300MB — built locally via scripts/ingest.py)
 data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 
+# env / secrets
 .env*
 !.env.example
 
+# editors & tooling
+.idea
+*.iml
+.vscode
+.claude
+.fleet
+
+# deploy
+.vercel
+.fly
+
+# misc
 .DS_Store
+Thumbs.db
 *.log
 npm-debug.log*
-
-scripts/.venv
-scripts/__pycache__
-*.pyc
+yarn-error.log*
+coverage
