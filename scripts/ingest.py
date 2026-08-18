@@ -58,6 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_pts  ON performances(pts);
 CREATE INDEX IF NOT EXISTS idx_reb  ON performances(reb);
 CREATE INDEX IF NOT EXISTS idx_ast  ON performances(ast);
 CREATE INDEX IF NOT EXISTS idx_date ON performances(game_date);
+CREATE INDEX IF NOT EXISTS idx_team ON performances(team_abbr);
+CREATE INDEX IF NOT EXISTS idx_season ON performances(season);
 CREATE TABLE IF NOT EXISTS _ingest_state (
   season       TEXT NOT NULL,
   season_type  TEXT NOT NULL,

@@ -9,16 +9,61 @@ import {
   STAT_LABELS,
   type StatKey,
 } from "@/lib/statKeys";
-import type { Filters, SeasonType } from "@/lib/buildSearchQuery";
+import type { Filters, Outcome, SeasonType, Venue } from "@/lib/buildSearchQuery";
+import type { Draft } from "./urlState";
 import RangeSlider from "./RangeSlider";
 
 type Props = {
-  filters: Filters;
-  seasonType: SeasonType;
-  onChange: (next: { filters: Filters; seasonType: SeasonType }) => void;
+  value: Draft;
+  teams: string[];
+  onChange: (next: Draft) => void;
   onSubmit: () => void;
   onClear: () => void;
 };
+
+const inputCls =
+  "min-w-0 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-sm outline-none focus:border-zinc-500";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/** A small segmented control for the two-or-three-value criteria. */
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`flex-1 rounded-md border px-2 py-1.5 text-xs ${
+            value === o.value
+              ? "border-zinc-300 bg-zinc-200 text-zinc-900"
+              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-600"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function StatCell({
   k,
@@ -94,21 +139,29 @@ function StatCell({
   );
 }
 
-export default function FilterPanel({
-  filters,
-  seasonType,
-  onChange,
-  onSubmit,
-  onClear,
-}: Props) {
+export default function FilterPanel({ value, teams, onChange, onSubmit, onClear }: Props) {
   const [showExtras, setShowExtras] = useState(false);
+  const { filters, seasonType } = value;
+
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...value, [k]: v });
 
   const update = (k: StatKey, r: { min?: number | null; max?: number | null } | undefined) => {
     const next: Filters = { ...filters };
     if (r === undefined) delete next[k];
     else next[k] = r;
-    onChange({ filters: next, seasonType });
+    set("filters", next);
   };
+
+  const teamOptions = (
+    <>
+      <option value="">Any</option>
+      {teams.map((t) => (
+        <option key={t} value={t}>
+          {t}
+        </option>
+      ))}
+    </>
+  );
 
   return (
     <form
@@ -122,6 +175,99 @@ export default function FilterPanel({
         {PRIMARY_STATS.map((k) => (
           <StatCell key={k} k={k} range={filters[k]} onUpdate={(r) => update(k, r)} />
         ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-3 sm:grid-cols-3 md:grid-cols-6">
+        <Field label="Player">
+          <input
+            type="text"
+            placeholder="any"
+            value={value.player ?? ""}
+            onChange={(e) => set("player", e.target.value || null)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Team">
+          {teams.length > 0 ? (
+            <select
+              value={value.team ?? ""}
+              onChange={(e) => set("team", e.target.value || null)}
+              className={inputCls}
+            >
+              {teamOptions}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="LAL"
+              maxLength={3}
+              value={value.team ?? ""}
+              onChange={(e) => set("team", e.target.value.toUpperCase() || null)}
+              className={inputCls}
+            />
+          )}
+        </Field>
+        <Field label="Opponent">
+          {teams.length > 0 ? (
+            <select
+              value={value.opponent ?? ""}
+              onChange={(e) => set("opponent", e.target.value || null)}
+              className={inputCls}
+            >
+              {teamOptions}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="BOS"
+              maxLength={3}
+              value={value.opponent ?? ""}
+              onChange={(e) => set("opponent", e.target.value.toUpperCase() || null)}
+              className={inputCls}
+            />
+          )}
+        </Field>
+        <Field label="Result">
+          <Segmented<Outcome>
+            options={[
+              { value: "All", label: "Any" },
+              { value: "W", label: "Win" },
+              { value: "L", label: "Loss" },
+            ]}
+            value={value.outcome ?? "All"}
+            onChange={(v) => set("outcome", v)}
+          />
+        </Field>
+        <Field label="Venue">
+          <Segmented<Venue>
+            options={[
+              { value: "All", label: "Any" },
+              { value: "home", label: "Home" },
+              { value: "away", label: "Away" },
+            ]}
+            value={value.venue ?? "All"}
+            onChange={(v) => set("venue", v)}
+          />
+        </Field>
+        <Field label="Seasons">
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              placeholder="1946-47"
+              value={value.seasonFrom ?? ""}
+              onChange={(e) => set("seasonFrom", e.target.value || null)}
+              className={`${inputCls} w-full tabular-nums`}
+            />
+            <span className="text-zinc-600">–</span>
+            <input
+              type="text"
+              placeholder="2025-26"
+              value={value.seasonTo ?? ""}
+              onChange={(e) => set("seasonTo", e.target.value || null)}
+              className={`${inputCls} w-full tabular-nums`}
+            />
+          </div>
+        </Field>
       </div>
 
       {showExtras && (
@@ -149,7 +295,7 @@ export default function FilterPanel({
             <button
               key={st}
               type="button"
-              onClick={() => onChange({ filters, seasonType: st })}
+              onClick={() => set("seasonType", st)}
               className={`rounded-md border px-2 py-1 text-xs ${
                 seasonType === st
                   ? "border-zinc-300 bg-zinc-200 text-zinc-900"

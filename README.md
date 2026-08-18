@@ -35,6 +35,10 @@ deviation among players who fill the box score. The result: games that
 just barely qualify sort above blowout outliers, which is usually what you
 were actually looking for.
 
+Alongside the stat ranges you can filter by player, team, opponent, win/loss,
+home/away, and season range — all plain predicates on columns the table already
+carries.
+
 Everything the UI holds is mirrored into the query string, so any search is
 a shareable link and the back button works.
 
