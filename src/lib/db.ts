@@ -78,4 +78,9 @@ CREATE TABLE IF NOT EXISTS _ingest_state (
   completed_at TEXT NOT NULL,
   PRIMARY KEY (season, season_type)
 );
+CREATE TABLE IF NOT EXISTS query_cache (
+  q          TEXT PRIMARY KEY,
+  parsed     TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `;

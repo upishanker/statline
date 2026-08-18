@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^2.17.1",
     "better-sqlite3": "^11.5.0",
     "next": "^15.0.3",
     "react": "^19.0.0",
