@@ -6,6 +6,7 @@ import SortControls from "./SortControls";
 import PerformanceCard from "./PerformanceCard";
 import SkeletonCard from "./SkeletonCard";
 import Pagination from "./Pagination";
+import NlSearchBar from "./NlSearchBar";
 import {
   draftOf,
   EMPTY_DRAFT,
@@ -104,6 +105,19 @@ export default function App({ teams }: { teams: string[] }) {
     setSubmitted({ ...EMPTY_DRAFT, sort: { by: "closeness", dir: "asc" }, page: 1 });
   }, []);
 
+  /**
+   * The NL bar is an input method for the filter state, not a parallel results
+   * path: it writes the same draft the panel edits, then submits. The controls
+   * visibly move to match the sentence, so a wrong reading is obvious and fixable.
+   */
+  const handleParsed = useCallback(
+    (next: Draft, sort: UiState["sort"]) => {
+      setDraft(next);
+      setSubmitted({ ...next, sort, page: 1 });
+    },
+    [],
+  );
+
   const handleSortChange = useCallback(
     (next: UiState["sort"]) => {
       setSubmitted((s) => ({ ...s, sort: next, page: 1 }));
@@ -137,6 +151,8 @@ export default function App({ teams }: { teams: string[] }) {
       </header>
 
       <div className="space-y-6">
+        <NlSearchBar onParsed={handleParsed} />
+
         <FilterPanel
           value={draft}
           teams={teams}
